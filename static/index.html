@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Historical Network Visualizer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        #header {
+            background-color: #333;
+            color: white;
+            padding: 1rem;
+        }
+        .container {
+            display: flex;
+            flex: 1;
+        }
+        #graph {
+            flex: 1;
+            background-color: #f5f5f5;
+            position: relative;
+        }
+        #details {
+            width: 300px;
+            padding: 1rem;
+            background-color: #eee;
+            overflow-y: auto;
+        }
+        .person-card {
+            background-color: white;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 10;
+            background-color: rgba(255,255,255,0.8);
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .node {
+            cursor: pointer;
+        }
+        .node text {
+            font-size: 10px;
+            text-anchor: middle;
+        }
+        .link {
+            stroke-opacity: 0.6;
+        }
+        .connection-label {
+            font-size: 9px;
+            text-anchor: middle;
+            pointer-events: none;
+        }
+        .era-filter, .type-filter {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="header">
+        <h1>Historical Network Visualizer</h1>
+    </div>
+    <div class="container">
+        <div id="graph">
+            <div class="controls">
+                <div class="era-filter">
+                    <label>Filter by Era:</label>
+                    <select id="era-select">
+                        <option value="all">All Eras</option>
+                    </select>
+                </div>
+                <div class="type-filter">
+                    <label>Filter by Connection Type:</label>
+                    <select id="type-select">
+                        <option value="all">All Types</option>
+                    </select>
+                </div>
+                <button id="reset-zoom">Reset View</button>
+            </div>
+        </div>
+        <div id="details">
+            <h2>Historical Figure Details</h2>
+            <p>Click on a node to see details</p>
+            <div id="person-details"></div>
+            <div id="connections-list"></div>
+        </div>
+    </div>
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // Graph visualization settings
+        const width = document.getElementById('graph').offsetWidth;
+        const height = document.getElementById('graph').offsetHeight;
+        
+        // Setup SVG
+        const svg = d3.select('#graph')
+            .append('svg')
+            .attr('width', '100%')
+            .attr('height', '100%')
+            .attr('viewBox', [0, 0, width, height]);
+        
+        // Add zoom capabilities
+        const g = svg.append('g');
+        
+        svg.call(d3.zoom()
+            .extent([[0, 0], [width, height]])
+            .scaleExtent([0.1, 8])
+            .on('zoom', (event) => {
+                g.attr('transform', event.transform);
+            }));
+        
+        // Define arrow markers for links
+        svg.append('defs').append('marker')
+            .attr('id', 'arrowhead')
+            .attr('viewBox', '0 -5 10 10')
+            .attr('refX', 15)
+            .attr('refY', 0)
+            .attr('orient', 'auto')
+            .attr('markerWidth', 6)
+            .attr('markerHeight', 6)
+            .attr('xoverflow', 'visible')
+            .append('svg:path')
+            .attr('d', 'M 0,-5 L 10,0 L 0,5')
+            .attr('fill', '#999')
+            .style('stroke', 'none');
+
+        // Color scale for different professions/groups
+        const color = d3.scaleOrdinal(d3.schemeCategory10);
+        
+        // Connection type color scale
+        const linkColor = d3.scaleOrdinal()
+            .domain(['mentor', 'influenced', 'colleague', 'rival', 'admired'])
+            .range(['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']);
+        
+        // Graph data
+        let graphData;
+        let simulation;
+
+        // Load data from API
+        fetch('/api/graph')
+            .then(response => response.json())
+            .then(data => {
+                graphData = data;
+                initializeGraph(graphData);
+                populateFilters(graphData);
+            })
+            .catch(error => console.error('Error loading graph data:', error));
+
+        function initializeGraph(data) {
+            // Clear existing graph
+            g.selectAll('*').remove();
+            
+            // Create the forces for the simulation
+            simulation = d3.forceSimulation(data.nodes)
+                .force('link', d3.forceLink(data.links).id(d => d.id).distance(100))
+                .force('charge', d3.forceManyBody().strength(-300))
+                .force('center', d3.forceCenter(width / 2, height / 2))
+                .on('tick', ticked);
+            
+            // Draw links
+            const link = g.append('g')
+                .attr('class', 'links')
+                .selectAll('line')
+                .data(data.links)
+                .join('line')
+                .attr('class', 'link')
+                .attr('stroke', d => linkColor(d.type))
+                .attr('stroke-width', d => Math.sqrt(d.strength))
+                .attr('marker-end', 'url(#arrowhead)');
+            
+            // Draw nodes
+            const node = g.append('g')
+                .attr('class', 'nodes')
+                .selectAll('g')
+                .data(data.nodes)
+                .join('g')
+                .attr('class', 'node')
+                .call(d3.drag()
+                    .on('start', dragstarted)
+                    .on('drag', dragged)
+                    .on('end', dragended))
+                .on('click', showDetails);
+            
+            // Node circles
+            node.append('circle')
+                .attr('r', 10)
+                .attr('fill', d => color(d.group))
+                .append('title')
+                .text(d => d.name);
+            
+            // Node labels
+            node.append('text')
+                .attr('dy', 20)
+                .text(d => d.name)
+                .attr('text-anchor', 'middle');
+            
+            // Connection labels
+            g.append('g')
+                .attr('class', 'connection-labels')
+                .selectAll('text')
+                .data(data.links)
+                .join('text')
+                .attr('class', 'connection-label')
+                .text(d => d.type);
+            
+            // Tick function to update positions
+            function ticked() {
+                link
+                    .attr('x1', d => d.source.x)
+                    .attr('y1', d => d.source.y)
+                    .attr('x2', d => d.target.x)
+                    .attr('y2', d => d.target.y);
+                
+                node
+                    .attr('transform', d => `translate(${d.x}, ${d.y})`);
+                
+                g.selectAll('.connection-label')
+                    .attr('x', d => (d.source.x + d.target.x) / 2)
+                    .attr('y', d => (d.source.y + d.target.y) / 2 - 5);
+            }
+            
+            // Drag functions
+            function dragstarted(event, d) {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                d.fx = d.x;
+                d.fy = d.y;
+            }
+            
+            function dragged(event, d) {
+                d.fx = event.x;
+                d.fy = event.y;
+            }
+            
+            function dragended(event, d) {
+                if (!event.active) simulation.alphaTarget(0);
+                d.fx = null;
+                d.fy = null;
+            }
+        }
+
+        function populateFilters(data) {
+            // Populate era filter
+            const eras = [...new Set(data.nodes.map(d => d.era))];
+            const eraSelect = document.getElementById('era-select');
+            
+            eras.forEach(era => {
+                const option = document.createElement('option');
+                option.value = era;
+                option.textContent = era;
+                eraSelect.appendChild(option);
+            });
+            
+            // Populate connection type filter
+            const types = [...new Set(data.links.map(d => d.type))];
+            const typeSelect = document.getElementById('type-select');
+            
+            types.forEach(type => {
+                const option = document.createElement('option');
+                option.value = type;
+                option.textContent = type;
+                typeSelect.appendChild(option);
+            });
+            
+            // Add event listeners
+            eraSelect.addEventListener('change', filterGraph);
+            typeSelect.addEventListener('change', filterGraph);
+            document.getElementById('reset-zoom').addEventListener('click', resetZoom);
+        }
+
+        function filterGraph() {
+            const eraFilter = document.getElementById('era-select').value;
+            const typeFilter = document.getElementById('type-select').value;
+            
+            // Filter nodes
+            let filteredNodes = graphData.nodes;
+            if (eraFilter !== 'all') {
+                filteredNodes = filteredNodes.filter(node => node.era === eraFilter);
+            }
+            
+            // Get filtered node IDs
+            const nodeIds = new Set(filteredNodes.map(node => node.id));
+            
+            // Filter links
+            let filteredLinks = graphData.links.filter(link => 
+                nodeIds.has(link.source.id || link.source) && 
+                nodeIds.has(link.target.id || link.target)
+            );
+            
+            if (typeFilter !== 'all') {
+                filteredLinks = filteredLinks.filter(link => link.type === typeFilter);
+            }
+            
+            // Create new filtered graph
+            const filteredGraph = {
+                nodes: filteredNodes,
+                links: filteredLinks
+            };
+            
+            // Update visualization
+            initializeGraph(filteredGraph);
+        }
+
+        function resetZoom() {
+            svg.transition().duration(750).call(
+                d3.zoom().transform,
+                d3.zoomIdentity,
+                d3.zoomTransform(svg.node()).invert([width / 2, height / 2])
+            );
+        }
+
+        function showDetails(event, d) {
+            const personDetails = document.getElementById('person-details');
+            const connectionsList = document.getElementById('connections-list');
+            
+            // Show person details
+            personDetails.innerHTML = `
+                <div class="person-card">
+                    <h3>${d.name} (${d.yearBirth} - ${d.yearDeath || 'present'})</h3>
+                    <p><strong>Era:</strong> ${d.era}</p>
+                    <p><strong>Profession:</strong> ${d.profession}</p>
+                    <p><strong>Country:</strong> ${d.country}</p>
+                    ${d.info ? `<p>${d.info}</p>` : ''}
+                </div>
+            `;
+            
+            // Show connections
+            connectionsList.innerHTML = '<h3>Connections</h3>';
+            
+            // Find outgoing connections
+            const outgoing = graphData.links.filter(link => 
+                (link.source.id === d.id) || (link.source === d.id)
+            );
+            
+            // Find incoming connections
+            const incoming = graphData.links.filter(link => 
+                (link.target.id === d.id) || (link.target === d.id)
+            );
+            
+            if (outgoing.length > 0) {
+                connectionsList.innerHTML += '<h4>Outgoing</h4>';
+                outgoing.forEach(link => {
+                    const targetNode = graphData.nodes.find(n => n.id === (link.target.id || link.target));
+                    connectionsList.innerHTML += `
+                        <div class="person-card">
+                            <p><strong>${d.name} → ${targetNode.name}</strong></p>
+                            <p><strong>Type:</strong> ${link.type}</p>
+                            <p><strong>Strength:</strong> ${link.strength}/10</p>
+                            <p>${link.description}</p>
+                        </div>
+                    `;
+                });
+            }
+            
+            if (incoming.length > 0) {
+                connectionsList.innerHTML += '<h4>Incoming</h4>';
+                incoming.forEach(link => {
+                    const sourceNode = graphData.nodes.find(n => n.id === (link.source.id || link.source));
+                    connectionsList.innerHTML += `
+                        <div class="person-card">
+                            <p><strong>${sourceNode.name} → ${d.name}</strong></p>
+                            <p><strong>Type:</strong> ${link.type}</p>
+                            <p><strong>Strength:</strong> ${link.strength}/10</p>
+                            <p>${link.description}</p>
+                        </div>
+                    `;
+                });
+            }
+        }
+    </script>
+</body>
+</html>
