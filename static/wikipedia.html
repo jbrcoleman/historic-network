@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wikipedia Scraper - Historical Network Visualizer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        #header {
+            background-color: #333;
+            color: white;
+            padding: 1rem;
+        }
+        .nav-links {
+            margin-top: 10px;
+        }
+        .nav-links a {
+            color: white;
+            margin-right: 15px;
+            text-decoration: none;
+        }
+        .nav-links a:hover {
+            text-decoration: underline;
+        }
+        .container {
+            display: flex;
+            flex: 1;
+            padding: 20px;
+        }
+        .search-panel {
+            width: 350px;
+            padding: 1rem;
+            background-color: #f5f5f5;
+            border-radius: 8px;
+            margin-right: 20px;
+        }
+        .search-panel h2 {
+            margin-top: 0;
+        }
+        .results-panel {
+            flex: 1;
+            padding: 1rem;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            overflow-y: auto;
+        }
+        .search-box {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .search-result {
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        .search-result h3 {
+            margin-top: 0;
+        }
+        .search-result .buttons {
+            margin-top: 10px;
+        }
+        .person-card {
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .connections-list {
+            margin-top: 15px;
+        }
+        .connection-card {
+            background-color: #f0f8ff;
+            border: 1px solid #add8e6;
+            border-radius: 5px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100px;
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #09f;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .batch-input {
+            width: 100%;
+            height: 100px;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #ddd;
+        }
+        .tab {
+            padding: 10px 15px;
+            cursor: pointer;
+            background-color: #f1f1f1;
+            border: 1px solid #ddd;
+            border-bottom: none;
+            margin-right: 5px;
+            border-top-left-radius: 5px;
+            border-top-right-radius: 5px;
+        }
+        .tab.active {
+            background-color: white;
+            border-bottom: 1px solid white;
+            margin-bottom: -1px;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .text-analysis {
+            margin-top: 15px;
+        }
+        .text-area {
+            width: 100%;
+            height: 150px;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .entity-tag {
+            display: inline-block;
+            background-color: #e6f7ff;
+            border: 1px solid #91d5ff;
+            border-radius: 4px;
+            padding: 2px 8px;
+            margin: 2px;
+            font-size: 14px;
+        }
+        .alert {
+            padding: 10px 15px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .alert.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+    </style>
+</head>
+<body>
+    <div id="header">
+        <h1>Wikipedia Scraper for Historical Networks</h1>
+        <div class="nav-links">
+            <a href="/">Back to Network Visualizer</a>
+            <a href="/wikipedia.html" class="active">Wikipedia Scraper</a>
+        </div>
+    </div>
+    <div class="container">
+        <div class="search-panel">
+            <div class="tabs">
+                <div class="tab active" data-tab="search">Search</div>
+                <div class="tab" data-tab="batch">Batch Import</div>
+                <div class="tab" data-tab="analysis">Text Analysis</div>
+            </div>
+            
+            <div id="search-tab" class="tab-content active">
+                <h2>Search Wikipedia</h2>
+                <input type="text" id="search-input" class="search-box" placeholder="Search for historical figures...">
+                <button id="search-btn">Search</button>
+                <div id="search-loading" class="loading" style="display: none;">
+                    <div class="spinner"></div>
+                </div>
+                <div id="search-results"></div>
+            </div>
+            
+            <div id="batch-tab" class="tab-content">
+                <h2>Batch Import</h2>
+                <p>Enter multiple names, one per line:</p>
+                <textarea id="batch-input" class="batch-input" placeholder="Galileo Galilei
+Marie Curie
+Nikola Tesla"></textarea>
+                <button id="batch-import-btn">Import All</button>
+                <div id="batch-loading" class="loading" style="display: none;">
+                    <div class="spinner"></div>
+                </div>
+                <div id="batch-status"></div>
+            </div>
+            
+            <div id="analysis-tab" class="tab-content">
+                <h2>Text Analysis</h2>
+                <p>Paste text to extract historical figures and analyze relationships:</p>
+                <textarea id="analysis-text" class="text-area" placeholder="Paste text containing historical figures and their relationships..."></textarea>
+                <button id="extract-btn">Extract Entities</button>
+                <div id="analysis-loading" class="loading" style="display: none;">
+                    <div class="spinner"></div>
+                </div>
+                <div id="entities-results" class="text-analysis"></div>
+                
+                <div class="text-analysis">
+                    <h3>Analyze Relationship</h3>
+                    <input type="text" id="source-name" class="search-box" placeholder="Source figure name">
+                    <input type="text" id="target-name" class="search-box" placeholder="Target figure name">
+                    <button id="analyze-relationship-btn">Analyze Relationship</button>
+                    <div id="relationship-results"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="results-panel">
+            <h2>Imported Data</h2>
+            <div id="scrape-status"></div>
+            <div id="people-results"></div>
+            <div id="connections-list" class="connections-list"></div>
+        </div>
+    </div>
+
+    <script>
+        // Tab switching functionality
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Hide all tab contents
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.remove('active');
+                });
+                
+                // Deactivate all tabs
+                document.querySelectorAll('.tab').forEach(t => {
+                    t.classList.remove('active');
+                });
+                
+                // Activate clicked tab and its content
+                tab.classList.add('active');
+                const tabId = tab.getAttribute('data-tab');
+                document.getElementById(`${tabId}-tab`).classList.add('active');
+            });
+        });
+
+        // Search functionality
+        document.getElementById('search-btn').addEventListener('click', searchWikipedia);
+        document.getElementById('search-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                searchWikipedia();
+            }
+        });
+
+        // Batch import functionality
+        document.getElementById('batch-import-btn').addEventListener('click', batchImport);
+        
+        // Text analysis functionality
+        document.getElementById('extract-btn').addEventListener('click', extractEntities);
+        document.getElementById('analyze-relationship-btn').addEventListener('click', analyzeRelationship);
+
+        function searchWikipedia() {
+            const query = document.getElementById('search-input').value.trim();
+            if (!query) return;
+            
+            // Show loading spinner
+            document.getElementById('search-loading').style.display = 'flex';
+            document.getElementById('search-results').innerHTML = '';
+            
+            fetch(`/api/wikipedia/search?q=${encodeURIComponent(query)}`)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('search-loading').style.display = 'none';
+                    
+                    const resultsContainer = document.getElementById('search-results');
+                    resultsContainer.innerHTML = '';
+                    
+                    if (data.length === 0) {
+                        resultsContainer.innerHTML = '<p>No results found.</p>';
+                        return;
+                    }
+                    
+                    data.forEach(result => {
+                        const resultElement = document.createElement('div');
+                        resultElement.className = 'search-result';
+                        resultElement.innerHTML = `
+                            <h3>${result.title}</h3>
+                            <p>${result.description || 'No description available'}</p>
+                            <div class="buttons">
+                                <button class="scrape-btn" data-name="${result.title}">Import to Network</button>
+                            </div>
+                        `;
+                        resultsContainer.appendChild(resultElement);
+                    });
+                    
+                    // Add event listeners to scrape buttons
+                    document.querySelectorAll('.scrape-btn').forEach(btn => {
+                        btn.addEventListener('click', () => {
+                            const name = btn.getAttribute('data-name');
+                            scrapeHistoricalFigure(name);
+                        });
+                    });
+                })
+                .catch(error => {
+                    document.getElementById('search-loading').style.display = 'none';
+                    document.getElementById('search-results').innerHTML = `
+                        <div class="alert">Error: ${error.message}</div>
+                    `;
+                });
+        }
+
+        function scrapeHistoricalFigure(name) {
+            document.getElementById('scrape-status').innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p style="margin-left: 10px;">Importing ${name}...</p>
+                </div>
+            `;
+            
+            fetch('/api/wikipedia/scrape', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ name })
+            })
+                .then(response => response.json())
+                .then(person => {
+                    // Update status
+                    document.getElementById('scrape-status').innerHTML = `
+                        <div class="alert success">Successfully imported ${person.name}</div>
+                    `;
+                    
+                    // Display person details
+                    displayPerson(person);
+                    
+                    // Get relationships
+                    findRelationships(person.id);
+                })
+                .catch(error => {
+                    document.getElementById('scrape-status').innerHTML = `
+                        <div class="alert">Error importing ${name}: ${error.message}</div>
+                    `;
+                });
+        }
+
+        function findRelationships(personId) {
+            fetch(`/api/wikipedia/relationships/${personId}`)
+                .then(response => response.json())
+                .then(connections => {
+                    if (connections.length > 0) {
+                        displayConnections(connections);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error finding relationships:', error);
+                });
+        }
+
+        function displayPerson(person) {
+            const personElement = document.createElement('div');
+            personElement.className = 'person-card';
+            personElement.innerHTML = `
+                <h3>${person.name} (${person.yearBirth} - ${person.yearDeath || 'present'})</h3>
+                <p><strong>Era:</strong> ${person.era}</p>
+                <p><strong>Profession:</strong> ${person.profession}</p>
+                <p><strong>Country:</strong> ${person.country}</p>
+                ${person.info ? `<p>${person.info}</p>` : ''}
+            `;
+            
+            document.getElementById('people-results').prepend(personElement);
+        }
+
+        function displayConnections(connections) {
+            const connectionsContainer = document.getElementById('connections-list');
+            
+            connections.forEach(conn => {
+                const connectionElement = document.createElement('div');
+                connectionElement.className = 'connection-card';
+                connectionElement.innerHTML = `
+                    <p><strong>From:</strong> ${conn.source} <strong>To:</strong> ${conn.target}</p>
+                    <p><strong>Type:</strong> ${conn.type}</p>
+                    <p><strong>Strength:</strong> ${conn.strength}/10</p>
+                    <p>${conn.description}</p>
+                `;
+                
+                connectionsContainer.prepend(connectionElement);
+            });
+        }
+
+        function batchImport() {
+            const namesText = document.getElementById('batch-input').value.trim();
+            if (!namesText) return;
+            
+            const names = namesText.split('\n')
+                .map(name => name.trim())
+                .filter(name => name.length > 0);
+            
+            if (names.length === 0) return;
+            
+            // Show loading spinner
+            document.getElementById('batch-loading').style.display = 'flex';
+            document.getElementById('batch-status').innerHTML = `
+                <p>Importing ${names.length} historical figures...</p>
+            `;
+            
+            fetch('/api/wikipedia/batch-scrape', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ names })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('batch-loading').style.display = 'none';
+                    document.getElementById('batch-status').innerHTML = `
+                        <div class="alert success">Successfully imported ${data.people.length} historical figures with ${data.connections.length} connections</div>
+                    `;
+                    
+                    // Display people and connections
+                    data.people.forEach(person => {
+                        displayPerson(person);
+                    });
+                    
+                    if (data.connections.length > 0) {
+                        displayConnections(data.connections);
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('batch-loading').style.display = 'none';
+                    document.getElementById('batch-status').innerHTML = `
+                        <div class="alert">Error importing figures: ${error.message}</div>
+                    `;
+                });
+        }
+        
+        function extractEntities() {
+            const text = document.getElementById('analysis-text').value.trim();
+            if (!text) return;
+            
+            // Show loading spinner
+            document.getElementById('analysis-loading').style.display = 'flex';
+            document.getElementById('entities-results').innerHTML = '';
+            
+            fetch('/api/wikipedia/extract-entities', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ text })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('analysis-loading').style.display = 'none';
+                    
+                    const entitiesContainer = document.getElementById('entities-results');
+                    entitiesContainer.innerHTML = '<h3>Extracted Entities</h3>';
+                    
+                    if (data.entities.length === 0) {
+                        entitiesContainer.innerHTML += '<p>No historical figures found in the text.</p>';
+                        return;
+                    }
+                    
+                    // Display entities as tags
+                    const tagsContainer = document.createElement('div');
+                    data.entities.forEach(entity => {
+                        const tag = document.createElement('span');
+                        tag.className = 'entity-tag';
+                        tag.textContent = entity;
+                        tag.addEventListener('click', () => {
+                            document.getElementById('search-input').value = entity;
+                            // Switch to search tab
+                            document.querySelector('.tab[data-tab="search"]').click();
+                            // Trigger search
+                            searchWikipedia();
+                        });
+                        tagsContainer.appendChild(tag);
+                    });
+                    entitiesContainer.appendChild(tagsContainer);
+                    
+                    // Add batch import option
+                    const batchBtn = document.createElement('button');
+                    batchBtn.textContent = `Import All ${data.entities.length} Figures`;
+                    batchBtn.style.marginTop = '10px';
+                    batchBtn.addEventListener('click', () => {
+                        document.getElementById('batch-input').value = data.entities.join('\n');
+                        // Switch to batch tab
+                        document.querySelector('.tab[data-tab="batch"]').click();
+                    });
+                    entitiesContainer.appendChild(batchBtn);
+                })
+                .catch(error => {
+                    document.getElementById('analysis-loading').style.display = 'none';
+                    document.getElementById('entities-results').innerHTML = `
+                        <div class="alert">Error extracting entities: ${error.message}</div>
+                    `;
+                });
+        }
+        
+        function analyzeRelationship() {
+            const text = document.getElementById('analysis-text').value.trim();
+            const source = document.getElementById('source-name').value.trim();
+            const target = document.getElementById('target-name').value.trim();
+            
+            if (!text || !source || !target) {
+                document.getElementById('relationship-results').innerHTML = `
+                    <div class="alert">Please provide text, source name, and target name.</div>
+                `;
+                return;
+            }
+            
+            fetch('/api/wikipedia/analyze-relationship', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ text, source, target })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    const relationshipContainer = document.getElementById('relationship-results');
+                    
+                    if (!data.type || data.strength === 0) {
+                        relationshipContainer.innerHTML = `
+                            <div class="alert">No clear relationship found between ${source} and ${target}.</div>
+                        `;
+                        return;
+                    }
+                    
+                    relationshipContainer.innerHTML = `
+                        <div class="connection-card">
+                            <p><strong>From:</strong> ${source} <strong>To:</strong> ${target}</p>
+                            <p><strong>Type:</strong> ${data.type}</p>
+                            <p><strong>Strength:</strong> ${data.strength}/10</p>
+                            <p>${data.description}</p>
+                            <button id="add-relationship-btn">Add to Network</button>
+                        </div>
+                    `;
+                    
+                    // Add event listener to add button
+                    document.getElementById('add-relationship-btn').addEventListener('click', () => {
+                        // First ensure both people exist in the database
+                        Promise.all([
+                            fetch('/api/wikipedia/scrape', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ name: source })
+                            }),
+                            fetch('/api/wikipedia/scrape', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ name: target })
+                            })
+                        ])
+                            .then(responses => Promise.all(responses.map(res => res.json())))
+                            .then(([sourcePerson, targetPerson]) => {
+                                // Now add the connection
+                                return fetch('/api/connections', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        source: sourcePerson.id,
+                                        target: targetPerson.id,
+                                        type: data.type,
+                                        strength: data.strength,
+                                        description: data.description
+                                    })
+                                });
+                            })
+                            .then(() => {
+                                relationshipContainer.innerHTML += `
+                                    <div class="alert success">Relationship added to network!</div>
+                                `;
+                            })
+                            .catch(error => {
+                                relationshipContainer.innerHTML += `
+                                    <div class="alert">Error adding relationship: ${error.message}</div>
+                                `;
+                            });
+                    });
+                })
+                .catch(error => {
+                    document.getElementById('relationship-results').innerHTML = `
+                        <div class="alert">Error analyzing relationship: ${error.message}</div>
+                    `;
+                });
+        }
+        
+        // Load existing people on page load
+        fetch('/api/people')
+            .then(response => response.json())
+            .then(people => {
+                if (people.length > 0) {
+                    document.getElementById('people-results').innerHTML = '<h3>Existing People in Network</h3>';
+                    people.forEach(person => {
+                        displayPerson(person);
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error loading people:', error);
+            });
+    </script>
+</body>
+</html>

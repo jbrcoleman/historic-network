@@ -41,21 +41,33 @@ type GraphData struct {
 var (
 	graphData GraphData
 	mu        sync.RWMutex
+	wikiService *WikipediaService
 )
 
 func main() {
 	// Initialize with sample data
 	initSampleData()
+	
+	// Initialize Wikipedia service
+	wikiService = NewWikipediaService()
 
 	r := mux.NewRouter()
 
-	// API endpoints
+	// Original API endpoints
 	r.HandleFunc("/api/graph", getGraphData).Methods("GET")
 	r.HandleFunc("/api/people", getPeople).Methods("GET")
 	r.HandleFunc("/api/people/{id}", getPersonDetails).Methods("GET")
 	r.HandleFunc("/api/connections", getConnections).Methods("GET")
 	r.HandleFunc("/api/people", addPerson).Methods("POST")
 	r.HandleFunc("/api/connections", addConnection).Methods("POST")
+
+	// Wikipedia API endpoints
+	r.HandleFunc("/api/wikipedia/search", wikiService.SearchWikipedia).Methods("GET")
+	r.HandleFunc("/api/wikipedia/scrape", wikiService.ScrapeHistoricalFigure).Methods("POST")
+	r.HandleFunc("/api/wikipedia/relationships/{id}", wikiService.FindRelationships).Methods("GET")
+	r.HandleFunc("/api/wikipedia/batch-scrape", wikiService.BatchScrape).Methods("POST")
+	r.HandleFunc("/api/wikipedia/extract-entities", wikiService.ExtractEntitiesFromText).Methods("POST")
+	r.HandleFunc("/api/wikipedia/analyze-relationship", wikiService.AnalyzeTextRelationships).Methods("POST")
 
 	// Serve static files
 	r.PathPrefix("/").Handler(http.FileServer(http.Dir("./static")))
@@ -162,17 +174,5 @@ func initSampleData() {
 		{ID: "einstein", Name: "Albert Einstein", Era: "Modern", Profession: "Physicist", YearBirth: 1879, YearDeath: 1955, Country: "Germany/USA", Group: 3, Info: "Developed the theory of relativity"},
 		{ID: "darwin", Name: "Charles Darwin", Era: "Modern", Profession: "Naturalist", YearBirth: 1809, YearDeath: 1882, Country: "England", Group: 4, Info: "Known for his contributions to evolutionary theory"},
 		{ID: "davinci", Name: "Leonardo da Vinci", Era: "Renaissance", Profession: "Polymath", YearBirth: 1452, YearDeath: 1519, Country: "Italy", Group: 5, Info: "Renaissance polymath: painter, sculptor, architect, scientist, and engineer"},
-	}
-
-	// Sample connections
-	graphData.Links = []Connection{
-		{Source: "socrates", Target: "plato", Type: "mentor", Strength: 10, Description: "Socrates was Plato's teacher and mentor"},
-		{Source: "plato", Target: "aristotle", Type: "mentor", Strength: 9, Description: "Plato taught Aristotle at his Academy"},
-		{Source: "aristotle", Target: "alexander", Type: "mentor", Strength: 8, Description: "Aristotle was hired as Alexander's tutor"},
-		{Source: "newton", Target: "einstein", Type: "influenced", Strength: 7, Description: "Newton's work laid the foundation for Einstein's theories"},
-		{Source: "davinci", Target: "newton", Type: "influenced", Strength: 4, Description: "Da Vinci's scientific approach influenced later scientists"},
-		{Source: "plato", Target: "darwin", Type: "influenced", Strength: 3, Description: "Plato's ideas on natural order influenced scientific thought"},
-		{Source: "socrates", Target: "aristotle", Type: "influenced", Strength: 6, Description: "Socratic method influenced Aristotle's approach to inquiry"},
-		{Source: "einstein", Target: "darwin", Type: "admired", Strength: 5, Description: "Einstein admired Darwin's scientific contributions"},
 	}
 }
