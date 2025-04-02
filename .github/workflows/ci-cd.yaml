@@ -46,7 +46,7 @@ jobs:
       - name: Update Kubernetes manifests
         if: github.event_name != 'pull_request'
         env:
-          GH_TOKEN: ${{ secrets.PAT }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Setup Git config
           git config --global user.name "GitHub Actions"
