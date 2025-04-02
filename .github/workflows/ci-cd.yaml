@@ -44,16 +44,19 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Update Kubernetes manifests
-        if: github.event_name != 'pull_request'
-        run: |
-          # Setup Git config
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-          
-          # Update the image tag in the ConfigMap
-          sed -i "s/tag: \".*\"/tag: \"${{ env.IMAGE_TAG }}\"/g" k8s/image-config.yaml
-          
-          # Commit and push if there are changes
-          git add k8s/image-config.yaml
-          git diff --quiet && git diff --staged --quiet || git commit -m "Update image tag to ${{ env.IMAGE_TAG }}"
-          git push
+      if: github.event_name != 'pull_request'
+      run: |
+        # Setup Git config with PAT for authentication
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
+        
+        # Configure Git to use the token
+        git remote set-url origin https://x-access-token:${{ secrets.PAT }}@github.com/${{ github.repository }}
+        
+        # Update the image tag in the ConfigMap
+        sed -i "s/tag: \".*\"/tag: \"${{ env.IMAGE_TAG }}\"/g" k8s/image-config.yaml
+        
+        # Commit and push if there are changes
+        git add k8s/image-config.yaml
+        git diff --quiet && git diff --staged --quiet || git commit -m "Update image tag to ${{ env.IMAGE_TAG }}"
+        git push
