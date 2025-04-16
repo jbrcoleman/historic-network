@@ -1,0 +1,97 @@
+# Default values for historical-network
+replicaCount: 2
+
+image:
+  repository: jbrcoleman/historical-network
+  tag: latest
+  pullPolicy: Always
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations:
+  sidecar.istio.io/inject: "true"
+
+podSecurityContext: {}
+
+securityContext: {}
+
+service:
+  type: ClusterIP
+  port: 80
+
+application:
+  port: 8080
+
+ingress:
+  enabled: true
+  host: "historical-network.example.com"
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+
+nodeSelector:
+  role: app
+
+tolerations: []
+
+affinity: {}
+
+# Wikipedia scraper configuration
+wikipedia:
+  scrapeInterval: 3600  # seconds
+  maxDepth: 2
+  maxRelatedPerFigure: 10
+  seedFigures:
+    - "Albert Einstein"
+    - "Marie Curie"
+    - "Isaac Newton"
+    - "Nikola Tesla"
+    - "Ada Lovelace"
+  
+# NLP configuration
+nlp:
+  model: "en_core_web_lg"
+  minRelationshipStrength: 2
+  extractionBatchSize: 50
+
+# API configuration
+api:
+  enableCors: true
+  rateLimit: 60  # requests per minute
+  cacheEnabled: true
+  cacheTTL: 600  # seconds
+
+# Persistence configuration
+persistence:
+  enabled: true
+  accessMode: ReadWriteOnce
+  size: 10Gi
+  storageClass: "default"
+
+# Monitoring configuration
+monitoring:
+  enabled: true
+  scrapeInterval: 15s
+  path: /metrics
+
+livenessProbe:
+  enabled: false
+readinessProbe:
+  enabled: false

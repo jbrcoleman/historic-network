@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "historical-network.fullname" . }}-config
+  labels:
+    {{- include "historical-network.labels" . | nindent 4 }}
+data:
+  config.json: |
+    {
+      "wikipedia": {
+        "scrapeInterval": {{ .Values.wikipedia.scrapeInterval }},
+        "maxDepth": {{ .Values.wikipedia.maxDepth }},
+        "maxRelatedPerFigure": {{ .Values.wikipedia.maxRelatedPerFigure }},
+        "seedFigures": [
+          {{- range $i, $figure := .Values.wikipedia.seedFigures }}
+          {{- if $i }},{{ end }}
+          "{{ $figure }}"
+          {{- end }}
+        ]
+      },
+      "nlp": {
+        "model": "{{ .Values.nlp.model }}",
+        "minRelationshipStrength": {{ .Values.nlp.minRelationshipStrength }},
+        "extractionBatchSize": {{ .Values.nlp.extractionBatchSize }}
+      },
+      "api": {
+        "enableCors": {{ .Values.api.enableCors }},
+        "rateLimit": {{ .Values.api.rateLimit }},
+        "cacheEnabled": {{ .Values.api.cacheEnabled }},
+        "cacheTTL": {{ .Values.api.cacheTTL }}
+      }
+    }
